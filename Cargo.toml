@@ -3,7 +3,7 @@ name = "can_mcp2515"
 version = "0.1.0"
 edition = "2021"
 authors = ["Viktor Smedberg <viktor@smedberg.eu>"]
-#repository =
+repository = "https://github.com/wiiggee1/can_mcp2515"
 
 [dependencies]
 #lib = { path = "./src/lib", default-features = false }
