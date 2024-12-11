@@ -11,10 +11,7 @@
 
 use core::{borrow::Borrow, str};
 
-//use cortex_m::asm as _;
-//use cortex_m_rt::entry;
-//use defmt::{unwrap, Format};
-//use defmt_rtt as _;
+use super::message::CanMessage;
 use digital::ErrorKind;
 use embedded_can::{blocking::Can, Error, Frame, Id, StandardId};
 use embedded_hal::{
@@ -22,17 +19,6 @@ use embedded_hal::{
     digital::{InputPin, OutputPin},
     spi::SpiBus,
 };
-use super::message::CanMessage;
-//use lib::protocol::message::CanMessage;
-//use nb;
-//use nrf52840_hal::{
-//    self as _,
-//    comp::OperationMode,
-//    gpio::{Level, Port},
-//    gpiote::{Gpiote, GpioteInputPin},
-//    pac::nfct::framestatus::RX,
-//    spi,
-//};
 
 /// The `MCP2515` driver struct.
 pub struct Mcp2515Driver<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> {
@@ -601,6 +587,9 @@ pub enum Mcp2515Error {
 
     /// Custom error type for whenever decoding a can frame isn't successful.
     DecodeError,
+
+    /// The underlying spi abstraction returned an error.
+    SPIError,
 }
 
 impl EFLG {
@@ -626,11 +615,12 @@ impl embedded_can::Error for Mcp2515Error {
     fn kind(&self) -> embedded_can::ErrorKind {
         match self {
             Self::TransmissionError => embedded_can::ErrorKind::Other,
-            Self::RX0Overflow => embedded_can::ErrorKind::Other,
-            Self::RX1Overflow => embedded_can::ErrorKind::Other,
+            Self::RX0Overflow => embedded_can::ErrorKind::Overrun,
+            Self::RX1Overflow => embedded_can::ErrorKind::Overrun,
             Self::MessageErrorInterrupt => embedded_can::ErrorKind::Other,
             Self::ReceiveError => embedded_can::ErrorKind::Other,
             Self::DecodeError => embedded_can::ErrorKind::Other,
+            Self::SPIError => embedded_can::ErrorKind::Other,
         }
     }
 }
@@ -1260,11 +1250,13 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     /// Will return appropriate error type, if it fails to decode the
     /// `InterruptFlagCode`.
     pub fn interrupt_decode(&mut self) -> Result<InterruptFlagCode, Mcp2515Error> {
-        let canstat = self.read_register(MCP2515Register::CANSTAT, 0x00).unwrap();
+        let canstat = self
+            .read_register(MCP2515Register::CANSTAT, 0x00)
+            .map_err(|_| Mcp2515Error::SPIError)?;
         let mut interrupt_code = (canstat & 0b0000_1110) >> 1; // clear OPMOD bits and shift right by 1.
 
-        //TODO: - Clean up code, by removing overhead to spi write and read. 
-        //Also the SPI instruction "RX STATUS", can check: 
+        //TODO: - Clean up code, by removing overhead to spi write and read.
+        //Also the SPI instruction "RX STATUS", can check:
         //  - "No RX message"
         //  - "Message in RXB0"
         //  - "Message in RXB1"
@@ -1272,7 +1264,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 
         match InterruptFlagCode::try_from(interrupt_code) {
             Ok(flag_code) => {
-                //defmt::info!("Received the Interrupt Code: {:?}", flag_code);
+                //defmt::info!("Received thef Interrupt Code: {:?}", flag_code);
                 Ok(flag_code)
             }
             Err(e) => {
@@ -1280,6 +1272,15 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 Err(Mcp2515Error::MessageErrorInterrupt)
             }
         }
+    }
+
+    fn interrupt_code(&mut self) -> Result<InterruptFlagCode, Mcp2515Error> {
+        let canstat = self
+            .read_register(MCP2515Register::CANSTAT, 0x00)
+            .map_err(|_| Mcp2515Error::SPIError)?;
+        let mut interrupt_code = (canstat & 0b0000_1110) >> 1; // clear OPMOD bits and shift right by 1.
+
+        todo!()
     }
 
     /// This just prints out, register bits related to a received error.
@@ -1452,5 +1453,93 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         const ZERO: u8 = 0u8;
         let canintf = self.read_register(MCP2515Register::CANINTF, 0x00).unwrap();
         canintf == ZERO
+    }
+
+    /// Returns a simple event
+    pub fn interrupt_manager<'a>(&'a mut self) -> CanEventManager<'a, SPI, PIN, PININT> {
+        CanEventManager::new(self)
+    }
+}
+
+/// A simple event manager that iterates over all of the events in the `Mcp2515` device.
+///
+/// This is created with [`interrupt_managert`](Mcp2515Driver::interrupt_manager).
+/// And allows you to manage the events in a simple manner.
+///
+/// ```ignore
+/// let mut manager = driver.interrupt_manager();
+/// while let Some(event) = manager.next() {
+///     let _ = event.handle();
+/// }
+/// ```
+///
+/// Or if you want to receive frames you can simply do
+///
+/// ```ignore
+/// let mut manager = driver.interrupt_manager();
+/// let mut received_message = None;
+/// while let Some(event) = manager.next() {
+///     if let Some(message) = event.handle() {
+///         received_message = Some(message)
+///     }
+/// }
+/// ```
+pub struct CanEventManager<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> {
+    can: &'bus mut Mcp2515Driver<SPI, PIN, PININT>,
+}
+
+impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
+    CanEventManager<'bus, SPI, PIN, PININT>
+{
+    /// Constructs a new event manager.
+    fn new(can: &'bus mut Mcp2515Driver<SPI, PIN, PININT>) -> Self {
+        Self { can }
+    }
+}
+
+impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
+    CanEventManager<'bus, SPI, PIN, PININT>
+{
+    fn next<'a>(&'a mut self) -> Option<CanEvent<'a, SPI, PIN, PININT>> {
+        if self.can.interrupt_is_cleared() {
+            return None;
+        }
+
+        let icode: InterruptFlagCode = self.can.interrupt_decode().ok()?;
+
+        Some(CanEvent::new(&mut self.can, icode))
+    }
+}
+
+/// Represents a single can event that needs to be handled.
+///
+/// This is generated by [`CanEventManager`] and is handled using [`handle`](CanEvent::handle).
+/// This can optionally return a frame if one was received.
+pub struct CanEvent<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> {
+    can: &'bus mut Mcp2515Driver<SPI, PIN, PININT>,
+    event_code: InterruptFlagCode,
+}
+
+impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
+    CanEvent<'bus, SPI, PIN, PININT>
+{
+    /// Constructs a new event manager.
+    fn new(can: &'bus mut Mcp2515Driver<SPI, PIN, PININT>, event_code: InterruptFlagCode) -> Self {
+        Self { can, event_code }
+    }
+
+    /// Handles the incoming event.
+    ///
+    /// If this was a receive event it will return the contained frame.
+    pub fn handle(mut self) -> Option<CanMessage> {
+        self.can.handle_interrupt(self.event_code)
+    }
+}
+
+impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> core::fmt::Debug
+    for CanEvent<'bus, SPI, PIN, PININT>
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}", self.event_code)
     }
 }
