@@ -1467,7 +1467,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 /// And allows you to manage the events in a simple manner.
 ///
 /// ```ignore
-/// let manager = driver.interrupt_manager();
+/// let mut manager = driver.interrupt_manager();
 /// while let Some(event) = manager.next() {
 ///     let _ = event.handle();
 /// }
@@ -1476,7 +1476,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 /// Or if you want to receive frames you can simply do
 ///
 /// ```ignore
-/// let manager = driver.interrupt_manager();
+/// let mut manager = driver.interrupt_manager();
 /// let mut received_message = None;
 /// while let Some(event) = manager.next() {
 ///     if let Some(message) = event.handle() {
