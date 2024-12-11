@@ -9,12 +9,8 @@
 #![allow(unused)]
 #![allow(missing_docs)]
 
-use core::{borrow::Borrow, marker::PhantomData, str};
+use core::{borrow::Borrow, str};
 
-//use cortex_m::asm as _;
-//use cortex_m_rt::entry;
-//use defmt::{unwrap, Format};
-//use defmt_rtt as _;
 use super::message::CanMessage;
 use digital::ErrorKind;
 use embedded_can::{blocking::Can, Error, Frame, Id, StandardId};
@@ -23,16 +19,6 @@ use embedded_hal::{
     digital::{InputPin, OutputPin},
     spi::SpiBus,
 };
-//use lib::protocol::message::CanMessage;
-//use nb;
-//use nrf52840_hal::{
-//    self as _,
-//    comp::OperationMode,
-//    gpio::{Level, Port},
-//    gpiote::{Gpiote, GpioteInputPin},
-//    pac::nfct::framestatus::RX,
-//    spi,
-//};
 
 /// The `MCP2515` driver struct.
 pub struct Mcp2515Driver<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> {
@@ -1479,23 +1465,23 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 ///
 /// This is created with [`interrupt_managert`](Mcp2515Driver::interrupt_manager).
 /// And allows you to manage the events in a simple manner.
-/// 
+///
 /// ```ignore
 /// let manager = driver.interrupt_manager();
 /// while let Some(event) = manager.next() {
-///     let _ = event.handle(); 
+///     let _ = event.handle();
 /// }
 /// ```
-/// 
+///
 /// Or if you want to receive frames you can simply do
-/// 
+///
 /// ```ignore
 /// let manager = driver.interrupt_manager();
 /// let mut received_message = None;
 /// while let Some(event) = manager.next() {
 ///     if let Some(message) = event.handle() {
 ///         received_message = Some(message)
-///     } 
+///     }
 /// }
 /// ```
 pub struct CanEventManager<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> {
