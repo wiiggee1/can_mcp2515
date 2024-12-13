@@ -1500,7 +1500,8 @@ impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     CanEventManager<'bus, SPI, PIN, PININT>
 {
-    fn next<'a>(&'a mut self) -> Option<CanEvent<'a, SPI, PIN, PININT>> {
+    /// Check the next interrupt flag code to process. 
+    pub fn next<'a>(&'a mut self) -> Option<CanEvent<'a, SPI, PIN, PININT>> {
         if self.can.interrupt_is_cleared() {
             return None;
         }
