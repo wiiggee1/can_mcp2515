@@ -25,7 +25,7 @@ use nb;
 //};
 
 /// Represent a CAN message.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[allow(clippy::module_name_repetitions)]
 pub struct CanMessage {
     /// CAN identifier, can be either Standard or Extended.
