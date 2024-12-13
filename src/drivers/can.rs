@@ -535,7 +535,7 @@ impl Mcp2515Settings {
 }
 
 impl TryFrom<u8> for InterruptFlagCode {
-    type Error = &'static str;
+    type Error = ();
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -547,7 +547,7 @@ impl TryFrom<u8> for InterruptFlagCode {
             0b101 => Ok(Self::TXB2Interrupt),
             0b110 => Ok(Self::RXB0Interrupt),
             0b111 => Ok(Self::RXB1Interrupt),
-            _ => Err("No such interrupt flag code exist!"),
+            _ => Err(()),
         }
     }
 }
@@ -1452,7 +1452,6 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 //defmt::println!("RXB1 received a message!");
                 self.active_rx = (Some(RXBN::RXB1), true);
                 let mut frame = self.receive().unwrap();
-                let data_str: &str = core::str::from_utf8(frame.data()).unwrap();
 
                 //self.transmit(&frame_response);
                 self.clear_interrupt_flag(1, canintf);
