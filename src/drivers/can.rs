@@ -400,6 +400,8 @@ pub struct Mcp2515Settings {
 }
 
 impl AcceptanceFilterMask {
+    const DEFAULT_FILTER_MASK: u16 = 0u16;
+
     /// Creates a neew Acceptance Filter and mask, for constraining acceptable
     /// frame IDs, that should be accepted/ignored.
     ///
@@ -414,6 +416,12 @@ impl AcceptanceFilterMask {
             rx_mask: mask,
             acceptance_filter: acceptance_id,
         }
+    }
+}
+
+impl Default for AcceptanceFilterMask {
+    fn default() -> Self {
+        Self { rx_mask: Self::DEFAULT_FILTER_MASK, acceptance_filter: Self::DEFAULT_FILTER_MASK }
     }
 }
 
@@ -461,14 +469,8 @@ impl Default for Mcp2515Settings {
             can_bitrate: Bitrate::CAN125,
             interrupts: 0u8,
             rxm_mode: ReceiveBufferMode::OnlyStandardId,
-            rx0_filtermask: AcceptanceFilterMask {
-                rx_mask: Self::DEFAULT_FILTER_MASK,
-                acceptance_filter: Self::DEFAULT_FILTER_MASK,
-            },
-            rx1_filtermask: AcceptanceFilterMask {
-                rx_mask: Self::DEFAULT_FILTER_MASK,
-                acceptance_filter: Self::DEFAULT_FILTER_MASK,
-            },
+            rx0_filtermask: AcceptanceFilterMask::default(),
+            rx1_filtermask: AcceptanceFilterMask::default(),
         }
     }
 }
@@ -513,6 +515,20 @@ impl Mcp2515Settings {
         interrupt_types
             .iter()
             .for_each(|el| self.interrupts |= *el as u8);
+        self
+    }
+
+    /// This is for setting the filtering on the RX0 buffer.
+    /// Default: Accepting everything.
+    pub fn filter_b0(mut self, mask: u16, filter: u16) -> Self {
+        self.rx0_filtermask = AcceptanceFilterMask::new(mask, filter);
+        self
+    }
+
+    /// This is for setting the filtering on the RX1 buffer.
+    /// Default: Accepting everything.
+    pub fn filter_b1(mut self, mask: u16, filter: u16) -> Self {
+        self.rx1_filtermask = AcceptanceFilterMask::new(mask, filter);
         self
     }
 
