@@ -501,7 +501,7 @@ impl Mcp2515Settings {
     /// Enable interrupt in the MCP2515.CANINTE register.
     /// This works by creating an interrupt mask by setting the
     /// associated CANINTE bit position associated with the specific interrupt.
-    const fn enable_interrupt(mut self, interrupt_type: CanInte) -> Self {
+    pub const fn enable_interrupt(mut self, interrupt_type: CanInte) -> Self {
         self.interrupts |= interrupt_type as u8;
         self
     }
@@ -509,12 +509,13 @@ impl Mcp2515Settings {
     /// Enables interrupt(s) in the MCP2515.CANINTE register.
     /// This works by creating an interrupt mask by setting the
     /// associated CANINTE bit(s) associated with the specific interrupt.
-    fn enable_interrupts(mut self, interrupt_types: &[CanInte]) -> Self {
+    pub fn enable_interrupts(mut self, interrupt_types: &[CanInte]) -> Self {
         interrupt_types
             .iter()
             .for_each(|el| self.interrupts |= *el as u8);
         self
     }
+
 }
 
 impl TryFrom<u8> for InterruptFlagCode {
@@ -1204,19 +1205,20 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     ///    If the CANINTE.RXnIE bit is set, an interrupt will be
     ///    generated on the INT pin to indicate that a valid
     ///    message has been received."
-    fn setup_interrupt(&mut self, can_settings: &Mcp2515Settings) -> &mut Self {
-        let settings = can_settings.enable_interrupts(&[
-            CanInte::MERRE,
-            CanInte::ERRIE,
-            CanInte::TX2IE,
-            CanInte::TX1IE,
-            CanInte::TX0IE,
-            CanInte::RX1IE,
-            CanInte::RX0IE,
-        ]);
-
-        self.can_settings.interrupts = settings.interrupts;
-        self.write_register(MCP2515Register::CANINTE, settings.interrupts);
+    pub fn setup_interrupt(&mut self, can_settings: &Mcp2515Settings) -> &mut Self {
+        //let settings = can_settings.enable_interrupts(&[
+        //    CanInte::MERRE,
+        //    CanInte::ERRIE,
+        //    CanInte::TX2IE,
+        //    CanInte::TX1IE,
+        //    CanInte::TX0IE,
+        //    CanInte::RX1IE,
+        //    CanInte::RX0IE,
+        //]);
+        //
+        //can_settings.enable_interrupts(interrupt_types)
+        //self.can_settings.interrupts = can_settings.interrupts;
+        self.write_register(MCP2515Register::CANINTE, can_settings.interrupts);
         self.read_register(MCP2515Register::CANINTE, 0x00);
 
         self
