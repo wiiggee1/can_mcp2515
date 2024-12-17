@@ -393,7 +393,7 @@ pub struct Mcp2515Settings {
     canctrl: SettingsCanCtrl,
     mcp_clk: McpClock, // Clock Frequency for MCP2515.
     can_bitrate: Bitrate,
-    interrupts: u8,
+    pub interrupts: u8,
     rxm_mode: ReceiveBufferMode,
     rx0_filtermask: AcceptanceFilterMask,
     rx1_filtermask: AcceptanceFilterMask,
@@ -692,6 +692,8 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
             active_rx: (None, false),
         };
 
+        driver.reset_instruction();
+
         driver
             .setup_configuration(initial_settings) // Setup CANCTRL register.
             .setup_bitrate() // Setup bitrate and clk freq, in registers: CNF1, CNF2, & CNF3.
@@ -709,6 +711,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 initial_settings.rx1_filtermask.acceptance_filter,
             );
 
+
         driver.activate_canbus();
 
         if (driver.can_settings.canctrl.mode != OperationTypes::Normal) {
@@ -721,6 +724,11 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     /// SPI read.
     fn read(&mut self, data: &mut [u8]) {
         self.spi.read(data);
+    }
+
+    pub fn read_caninte(&mut self) -> Result<u8, SPI::Error> {
+        self.read_register(MCP2515Register::CANINTE, 0x0)
+        
     }
 
     /// SPI write.
@@ -1055,10 +1063,12 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 self.write_register(MCP2515Register::RXB1CTRL, 0b0100_0000);
             }
             ReceiveBufferMode::OnlyStandardId => {
-                //self.write_register(MCP2515Register::RXB0CTRL, 0b0010_0000);
+                // No rollover
+                self.write_register(MCP2515Register::RXB0CTRL, 0b0000_0000);
+                
                 // With rollover if RXB0 is full.
-                self.write_register(MCP2515Register::RXB0CTRL, 0b0010_0100);
-                self.write_register(MCP2515Register::RXB1CTRL, 0b0010_0000);
+                //self.write_register(MCP2515Register::RXB0CTRL, 0b0000_0100);
+                self.write_register(MCP2515Register::RXB1CTRL, 0b0000_0000);
             }
         }
         self
@@ -1136,7 +1146,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         let rx_buffer = self.read_rx_buffer(rx).unwrap();
         let mut frame = CanMessage::try_from(rx_buffer).unwrap();
         //defmt::info!("Can bus received the Frame:");
-        frame.print_frame();
+        //frame.print_frame();
         frame
     }
 
@@ -1233,7 +1243,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         //]);
         //
         //can_settings.enable_interrupts(interrupt_types)
-        //self.can_settings.interrupts = can_settings.interrupts;
+        self.can_settings.interrupts = can_settings.interrupts;
         self.write_register(MCP2515Register::CANINTE, can_settings.interrupts);
         self.read_register(MCP2515Register::CANINTE, 0x00);
 
@@ -1242,19 +1252,24 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 
     /// This method, would clear the CANINTF at `bit_pos` param.
     /// It send the Bit Modify instruction with mask and data bytes.
-    fn clear_interrupt_flag(&mut self, bit_pos: u8, canintf: u8) {
-        //let canintf = self.read_register(MCP2515Register::CANINTF, 0x00).unwrap();
+    fn clear_interrupt_flag(&mut self, bit_pos: u8) {
+        let canintf = self.read_register(MCP2515Register::CANINTF, 0x00).unwrap();
         let mut mask_bytes: u8 = self.can_settings.interrupts; // enabled target interrupt bits.
         let mut data_bytes = canintf ^ (1 << bit_pos); //0bxxxx_1011 for clearing TX0IF
+                                                       //
+        defmt::warn!("GPIOTE: Coool new things {:#05b} & {:#05b}",mask_bytes,data_bytes);
 
-        self.cs.set_low();
-        self.spi.write(&[
-            InstructionCommand::Modify as u8,
-            MCP2515Register::CANINTF as u8,
-            mask_bytes,
-            data_bytes,
-        ]);
-        self.cs.set_high();
+        self.write_register(MCP2515Register::CANINTF, 0x0);
+    //
+    //    self.cs.set_low();
+    //    self.spi.write(&[
+    //        InstructionCommand::Modify as u8,
+    //        MCP2515Register::CANINTF as u8,
+    //        //0b11111,
+    //        mask_bytes,
+    //        data_bytes,
+    //    ]);
+    //    self.cs.set_high();
     }
 
     /// Decodes the CANSTAT.ICOD bits, and map to matched `InterruptFlagCode`.
@@ -1290,6 +1305,11 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 Err(Mcp2515Error::MessageErrorInterrupt)
             }
         }
+    }
+
+    //WARN: - Just for debbuing, remove when done. 
+    pub fn read_canintf(&mut self) -> u8 {
+        self.read_register(MCP2515Register::CANINTF, 0x00).unwrap()
     }
 
     fn interrupt_code(&mut self) -> Result<InterruptFlagCode, Mcp2515Error> {
@@ -1375,7 +1395,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
             //defmt::info!("Message Error Interrupt occurred (MERRE)!");
             // Handle message error below...
 
-            self.clear_interrupt_flag(7, canintf);
+            self.clear_interrupt_flag(7);
         }
     }
 
@@ -1400,14 +1420,14 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     ) -> Option<CanMessage> {
         let canintf = self.read_register(MCP2515Register::CANINTF, 0x00).unwrap();
         self.message_error_check(canintf);
-        //defmt::println!("CANINTF register bits: {:08b}", canintf);
-
+        defmt::println!("CANINTF register bits: {:08b}", canintf);
+        defmt::warn!("{:08b}", received_interrupt as u8); 
         match received_interrupt {
             InterruptFlagCode::NoInterrupt => None,
             InterruptFlagCode::ErrorInterrupt => {
-                //defmt::info!("Received Error Interrupt, with flags...");
-                self.error_handling();
-                self.clear_interrupt_flag(5, canintf);
+                //defmt::warn!("Received ERRIF, with flags...");
+                //self.error_handling();
+                self.clear_interrupt_flag(5);
                 None
             }
             InterruptFlagCode::WakeUpInterrupt => {
@@ -1418,20 +1438,20 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 //defmt::println!("TXB0 successfully transmitted a message!");
                 self.busy_tx[TXBN::TXB0.idx()] = false;
 
-                self.clear_interrupt_flag(2, canintf);
+                self.clear_interrupt_flag(2);
                 let all_handled = self.interrupt_is_cleared();
                 None
             }
             InterruptFlagCode::TXB1Interrupt => {
                 //defmt::println!("TXB1 successfully transmitted a message!");
                 self.busy_tx[TXBN::TXB1.idx()] = false;
-                self.clear_interrupt_flag(3, canintf);
+                self.clear_interrupt_flag(3);
                 None
             }
             InterruptFlagCode::TXB2Interrupt => {
                 //defmt::println!("TXB2 successfully transmitted a message!");
                 self.busy_tx[TXBN::TXB2.idx()] = false;
-                self.clear_interrupt_flag(4, canintf);
+                self.clear_interrupt_flag(4);
                 None
             }
             InterruptFlagCode::RXB0Interrupt => {
@@ -1440,12 +1460,12 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 let mut frame = self.receive().unwrap();
                 //let mut f = self.receive().ok()
 
-                let high_prio_id = StandardId::new(0x0).unwrap();
-                let id_high_prio = Id::Standard(high_prio_id);
-                let mut frame_response = CanMessage::new(id_high_prio, frame.data()).unwrap();
+                //let high_prio_id = StandardId::new(0x0).unwrap();
+                //let id_high_prio = Id::Standard(high_prio_id);
+                //let mut frame_response = CanMessage::new(id_high_prio, frame.data()).unwrap();
 
                 //self.transmit(&frame_response);
-                self.clear_interrupt_flag(0, canintf);
+                self.clear_interrupt_flag(0);
                 Some(frame)
             }
             InterruptFlagCode::RXB1Interrupt => {
@@ -1454,7 +1474,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 let mut frame = self.receive().unwrap();
 
                 //self.transmit(&frame_response);
-                self.clear_interrupt_flag(1, canintf);
+                self.clear_interrupt_flag(1);
                 Some(frame)
             }
         }
@@ -1524,6 +1544,7 @@ impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         }
 
         let icode: InterruptFlagCode = self.can.interrupt_decode().ok()?;
+        defmt::info!("GPIOTE icode : {:#05b}",icode as u8);
 
         Some(CanEvent::new(&mut self.can, icode))
     }
@@ -1535,7 +1556,7 @@ impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 /// This can optionally return a frame if one was received.
 pub struct CanEvent<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin> {
     can: &'bus mut Mcp2515Driver<SPI, PIN, PININT>,
-    event_code: InterruptFlagCode,
+    pub event_code: InterruptFlagCode,
 }
 
 impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
@@ -1550,6 +1571,7 @@ impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     ///
     /// If this was a receive event it will return the contained frame.
     pub fn handle(mut self) -> Option<CanMessage> {
+        defmt::info!("GPIOTE: Manager handle, event_code : {:#05b}", self.event_code as u8);
         self.can.handle_interrupt(self.event_code)
     }
 }
