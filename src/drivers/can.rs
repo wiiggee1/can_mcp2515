@@ -468,7 +468,7 @@ impl Default for Mcp2515Settings {
             mcp_clk: McpClock::MCP8,
             can_bitrate: Bitrate::CAN125,
             interrupts: 0u8,
-            rxm_mode: ReceiveBufferMode::OnlyStandardId,
+            rxm_mode: ReceiveBufferMode::FilterOffReceiveAny,
             rx0_filtermask: AcceptanceFilterMask::default(),
             rx1_filtermask: AcceptanceFilterMask::default(),
         }
