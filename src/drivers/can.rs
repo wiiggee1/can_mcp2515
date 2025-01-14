@@ -1337,11 +1337,11 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     /// REC - Receive Error Count.
     fn error_handling(&mut self) {
         //let canintf = self.read_register(MCP2515Register::CANINTF, 0x00).unwrap();
-        //let canstat = self.read_register(MCP2515Register::CANSTAT, 0x00).unwrap();
+        let canstat = self.read_register(MCP2515Register::CANSTAT, 0x00).unwrap();
         let errorflag_reg = self.read_register(MCP2515Register::EFLG, 0x00).unwrap();
         let txbnctrl = self.read_register(MCP2515Register::TXB0CTRL, 0x00).unwrap();
-        //let tec = self.read_register(MCP2515Register::TEC, 0x00).unwrap();
-        //let rec = self.read_register(MCP2515Register::REC, 0x00).unwrap();
+        let tec = self.read_register(MCP2515Register::TEC, 0x00).unwrap();
+        let rec = self.read_register(MCP2515Register::REC, 0x00).unwrap();
 
         let mut eflags_output = [EFLG::UNKNOWN; 8];
         let eflgs_count = Self::eflg_decode(errorflag_reg, &mut eflags_output);
@@ -1367,12 +1367,13 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         //    tx_err,
         //    message_lost
         //);
-        //defmt::info!("TEC status: {:08b}", tec);
-        //defmt::info!("REC status: {:08b}", tec);
+        defmt::info!("TEC status: {:08b}", tec);
+        defmt::info!("REC status: {:08b}", rec);
         //defmt::info!("CANINTF register bits: {:08b}", canintf);
-        //defmt::info!("CANSTAT register bits: {:08b}", canstat);
-        //defmt::info!("EFLG register bits: {:08b}", errorflag_reg);
+        defmt::info!("CANSTAT register bits: {:08b}", canstat);
+        defmt::info!("EFLG register bits: {:08b}", errorflag_reg);
         //defmt::info!("EFLG: {:?} to handle!", eflags_to_handle);
+
     }
 
     /// Decodes the EFLG register...
@@ -1433,7 +1434,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
             InterruptFlagCode::NoInterrupt => None,
             InterruptFlagCode::ErrorInterrupt => {
                 //defmt::warn!("Received ERRIF, with flags...");
-                //self.error_handling();
+                self.error_handling();
                 self.clear_interrupt_flag(5);
                 None
             }
