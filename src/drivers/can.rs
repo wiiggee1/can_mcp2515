@@ -461,7 +461,7 @@ impl Default for Mcp2515Settings {
             true,
             CLKPRE::DIV1,
             false,
-            false,
+            true,
         );
         Self {
             canctrl: canctrl_settings,
@@ -1114,7 +1114,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
                 true,
                 CLKPRE::DIV1,
                 false,
-                !ONE_SHOT_MODE,
+                ONE_SHOT_MODE,
             );
             self.can_settings.canctrl = canctrl_settings;
             self.change_settings(self.can_settings);
