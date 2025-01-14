@@ -1375,6 +1375,11 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         defmt::info!("EFLG register bits: {:08b}", errorflag_reg);
         //defmt::info!("EFLG: {:?} to handle!", eflags_to_handle);
 
+        if errorflag_reg & (0b11 << 6) != 0 {
+            self.write_register(MCP2515Register::EFLG, 0b0000_0000);
+            return;
+        }
+
         self.reset_instruction();
         let mut can_settings = self.can_settings;
         
@@ -1396,6 +1401,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
 
 
         self.activate_canbus();
+
 
     }
 
