@@ -1264,7 +1264,7 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         let mut mask_bytes: u8 = self.can_settings.interrupts; // enabled target interrupt bits.
         let mut data_bytes = canintf ^ (1 << bit_pos); //0bxxxx_1011 for clearing TX0IF
                                                        //
-        defmt::warn!("GPIOTE: Coool new things {:#05b} & {:#05b}",mask_bytes,data_bytes);
+        //defmt::warn!("GPIOTE: Coool new things {:#05b} & {:#05b}",mask_bytes,data_bytes);
 
         self.write_register(MCP2515Register::CANINTF, 0x0);
     //
@@ -1427,8 +1427,8 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     ) -> Option<CanMessage> {
         let canintf = self.read_register(MCP2515Register::CANINTF, 0x00).unwrap();
         self.message_error_check(canintf);
-        defmt::println!("CANINTF register bits: {:08b}", canintf);
-        defmt::warn!("{:08b}", received_interrupt as u8); 
+        //defmt::println!("CANINTF register bits: {:08b}", canintf);
+        //defmt::warn!("{:08b}", received_interrupt as u8); 
         match received_interrupt {
             InterruptFlagCode::NoInterrupt => None,
             InterruptFlagCode::ErrorInterrupt => {
@@ -1551,7 +1551,7 @@ impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         }
 
         let icode: InterruptFlagCode = self.can.interrupt_decode().ok()?;
-        defmt::info!("GPIOTE icode : {:#05b}",icode as u8);
+        //defmt::info!("GPIOTE icode : {:#05b}",icode as u8);
 
         Some(CanEvent::new(&mut self.can, icode))
     }
@@ -1578,7 +1578,7 @@ impl<'bus, SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
     ///
     /// If this was a receive event it will return the contained frame.
     pub fn handle(mut self) -> Option<CanMessage> {
-        defmt::info!("GPIOTE: Manager handle, event_code : {:#05b}", self.event_code as u8);
+        //defmt::info!("GPIOTE: Manager handle, event_code : {:#05b}", self.event_code as u8);
         self.can.handle_interrupt(self.event_code)
     }
 }
