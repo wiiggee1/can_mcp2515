@@ -1160,10 +1160,17 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
          * #define MCP_16MHz_125kBPS_CFG3 (0x86)
          */
 
+        //#define MCP_8MHz_1000kBPS_CFG1 (0x00)
+        //#define MCP_8MHz_1000kBPS_CFG2 (0x80)
+        //#define MCP_8MHz_1000kBPS_CFG3 (0x80)
+        self.write_register(MCP2515Register::CNF1, 0x00);
+        self.write_register(MCP2515Register::CNF2, 0x80);
+        self.write_register(MCP2515Register::CNF3, 0x80);
+
         // This would set the MCP speed of 8MHz and a bitrate of 125kBPS
-        self.write_register(MCP2515Register::CNF1, 0x01);
-        self.write_register(MCP2515Register::CNF2, 0xB1);
-        self.write_register(MCP2515Register::CNF3, 0x85);
+        //self.write_register(MCP2515Register::CNF1, 0x01);
+        //self.write_register(MCP2515Register::CNF2, 0xB1);
+        //self.write_register(MCP2515Register::CNF3, 0x85);
 
         self
     }
