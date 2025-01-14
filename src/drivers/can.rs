@@ -48,6 +48,7 @@ pub struct Mcp2515Driver<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT:
     /// This is for reading the specific RX buffer depending on the given
     /// interrupt received.
     pub active_rx: (Option<RXBN>, bool),
+
 }
 
 ///Instruction commands specific to the MCP2515 via SPI.
@@ -1373,6 +1374,28 @@ impl<SPI: embedded_hal::spi::SpiBus, PIN: OutputPin, PININT: InputPin>
         defmt::info!("CANSTAT register bits: {:08b}", canstat);
         defmt::info!("EFLG register bits: {:08b}", errorflag_reg);
         //defmt::info!("EFLG: {:?} to handle!", eflags_to_handle);
+
+        self.reset_instruction();
+        let mut can_settings = self.can_settings;
+        
+        self.setup_configuration(&can_settings) // Setup CANCTRL register.
+            .setup_bitrate() // Setup bitrate and clk freq, in registers: CNF1, CNF2, & CNF3.
+            .setup_interrupt(&can_settings) // Setup interrupts in CANINTE register.
+            .tx_pending(false) // CLEAR the TXREQ bits indicating the tx buffer is not pending before writing.
+            .set_rxm_mode(can_settings.rxm_mode)
+            .filter_message_id(
+                RXBN::RXB0,
+                can_settings.rx0_filtermask.rx_mask,
+                can_settings.rx0_filtermask.acceptance_filter,
+            )
+            .filter_message_id(
+                RXBN::RXB1,
+                can_settings.rx1_filtermask.rx_mask,
+                can_settings.rx1_filtermask.acceptance_filter,
+            );
+
+
+        self.activate_canbus();
 
     }
 
